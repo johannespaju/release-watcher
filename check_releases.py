@@ -31,8 +31,10 @@ def notify(text):
 
 def post(url, payload):
     data = json.dumps(payload).encode()
-    req = urllib.request.Request(url, data=data,
-                                 headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(url, data=data, headers={
+        "Content-Type": "application/json",
+        "User-Agent": "release-watcher/1.0",
+    })
     urllib.request.urlopen(req)
 
 
