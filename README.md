@@ -6,16 +6,24 @@ entirely on GitHub Actions — no server, no cost.
 
 ## What it watches
 
-| Platform | Source |
-|----------|--------|
-| Magento | [`magento/magento2`](https://github.com/magento/magento2) |
-| OpenCart | [`opencart/opencart`](https://github.com/opencart/opencart) |
-| WooCommerce | [`woocommerce/woocommerce`](https://github.com/woocommerce/woocommerce) |
-| PrestaShop | [`PrestaShop/PrestaShop`](https://github.com/PrestaShop/PrestaShop) |
+| Platform | Source | Notes |
+|----------|--------|-------|
+| Magento | [`magento/magento2`](https://github.com/magento/magento2) | latest stable |
+| OpenCart | [`opencart/opencart`](https://github.com/opencart/opencart) | **v3 and v4 tracked separately** |
+| WooCommerce | [`woocommerce/woocommerce`](https://github.com/woocommerce/woocommerce) | latest stable |
+| PrestaShop | [`PrestaShop/PrestaShop`](https://github.com/PrestaShop/PrestaShop) | latest stable |
 
-Each platform is checked via the GitHub API endpoint `/releases/latest`, which
+Most platforms are checked via the GitHub API endpoint `/releases/latest`, which
 **excludes drafts and pre-releases automatically** — so betas and release
 candidates don't trigger notifications.
+
+**OpenCart is a special case.** It maintains the v3 and v4 lines in parallel from
+one repo and sometimes ships a v3 patch *after* a newer v4 release, so a single
+"latest" lookup can't represent both. Instead the script pulls the full
+`/releases` list, filters out pre-releases itself (the list endpoint includes
+them), and reports the highest stable version within **each** configured major
+line independently. To track different or additional majors, edit
+`MAJOR_TRACKED_REPOS` in `check_releases.py`.
 
 > **Shopify** is not included because it's hosted SaaS with no installable
 > version. What matters for app developers is the quarterly **API version**
@@ -26,7 +34,9 @@ candidates don't trigger notifications.
 
 1. A scheduled GitHub Actions workflow runs `check_releases.py`.
 2. For each repo, the script fetches the latest stable release tag.
-3. It compares each tag against `state.json` (the last-seen versions).
+3. It compares each tag against `state.json` (the last-seen versions). Each
+   tracked line has its own key — OpenCart uses `opencart/opencart#3` and
+   `opencart/opencart#4` so the two majors never overwrite each other.
 4. Any changed tag triggers a webhook POST to Discord and/or Slack.
 5. The updated `state.json` is committed back to the repo, so the next run
    only reports genuinely new releases.
@@ -85,6 +95,10 @@ Change the cron to `"0 8 * * *"` for a daily 08:00 UTC check, etc.
   no repo activity. Because this repo commits `state.json` whenever a release
   drops, active platforms keep it alive on their own. If everything goes quiet
   for two months, GitHub emails you and one click re-enables it.
+- **A failed notification won't abort the run.** Each send is wrapped so that
+  one bad webhook or network blip doesn't stop the remaining platforms from
+  being reported. A line that fails to send isn't saved to `state.json`, so it's
+  retried on the next run.
 - **Discord requires a User-Agent header.** Discord's API sits behind
   Cloudflare, which rejects Python's default `Python-urllib/x.y` User-Agent
   with `403 Forbidden`. The POST request sends a custom `User-Agent` header to
