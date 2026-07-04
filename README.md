@@ -25,10 +25,32 @@ them), and reports the highest stable version within **each** configured major
 line independently. To track different or additional majors, edit
 `MAJOR_TRACKED_REPOS` in `check_releases.py`.
 
-> **Shopify** is not included because it's hosted SaaS with no installable
-> version. What matters for app developers is the quarterly **API version**
-> (e.g. `2025-01`), published on the [Shopify developer changelog](https://shopify.dev/changelog)
-> rather than GitHub. Track that feed separately.
+### How Shopify tracking works
+
+Shopify has no version tag to compare, so it's handled by polling
+`https://shopify.dev/changelog/feed.xml` for two independent signals:
+
+- **New API version** — the script reads the exact `YYYY-MM` category tags on
+  changelog entries and alerts when a version it hasn't seen appears (e.g.
+  `2026-10`). This is the direct equivalent of "a new version came out, go
+  test." On the very first run it announces the current latest version once as
+  a confirmation, then stays quiet until a genuinely new one ships.
+- **Payments-related entries** (optional, on by default via
+  `SHOPIFY_PAYMENTS_FILTER`) — entries whose title or tags mention "payment",
+  such as Payments Apps API changes that can break a payment plugin. To avoid
+  flooding the channel, existing payments entries are seeded silently on the
+  first run; only entries that appear afterward are announced.
+
+Both signals key off the version string and each entry's stable GUID rather than
+the feed's `pubDate`, because Shopify's changelog is known to backdate and
+re-date entries — so a date-based "new since last check" would be unreliable.
+
+Turn Shopify off entirely by setting `WATCH_SHOPIFY = False`.
+
+> **Shopify** works differently — it's hosted SaaS with no installable version
+> or repo to diff. Instead it ships dated quarterly **API versions** (e.g.
+> `2026-07`) announced on its [developer changelog](https://shopify.dev/changelog)
+> RSS feed. The script watches that feed; see "How Shopify tracking works" below.
 
 ## How it works
 
@@ -36,7 +58,9 @@ line independently. To track different or additional majors, edit
 2. For each repo, the script fetches the latest stable release tag.
 3. It compares each tag against `state.json` (the last-seen versions). Each
    tracked line has its own key — OpenCart uses `opencart/opencart#3` and
-   `opencart/opencart#4` so the two majors never overwrite each other.
+   `opencart/opencart#4` so the two majors never overwrite each other. Shopify
+   uses `shopify:versions` (list of seen API versions) and
+   `shopify:seen_payments` (list of seen payments-entry IDs).
 4. Any changed tag triggers a webhook POST to Discord and/or Slack.
 5. The updated `state.json` is committed back to the repo, so the next run
    only reports genuinely new releases.
@@ -112,6 +136,7 @@ Change the cron to `"0 8 * * *"` for a daily 08:00 UTC check, etc.
 | `404` on the Discord POST | Webhook was deleted — recreate it and update the secret |
 | First run posts nothing | Check the secret name matches exactly (`DISCORD_WEBHOOK`, case-sensitive) |
 | No runs appear at all | Enable workflows on the private repo (banner in the Actions tab) |
+| `JSONDecodeError: Expecting value` on startup | `state.json` is empty or corrupt — delete it (a missing file reseeds cleanly), or update to a version with the tolerant `load_state()` which handles this automatically |
 | GitHub API rate limits | Unauthenticated calls are capped at 60/hour per IP; Actions runs use `GITHUB_TOKEN` automatically, so this mainly affects local testing |
 
 ## Local development
