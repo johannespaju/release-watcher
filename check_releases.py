@@ -1,4 +1,5 @@
 import json, os, pathlib, re, urllib.request
+import xml.etree.ElementTree as ET
 
 # Repos where we just want the single latest stable release.
 # /releases/latest already excludes drafts and pre-releases.
@@ -14,6 +15,13 @@ SIMPLE_REPOS = [
 MAJOR_TRACKED_REPOS = {
     "opencart/opencart": [3, 4],
 }
+
+# Shopify has no installable version; it ships dated quarterly API versions
+# (e.g. 2026-07) announced on its developer changelog RSS feed. We watch that
+# feed for (a) new API versions and (b) optionally payments-related entries.
+WATCH_SHOPIFY = True
+SHOPIFY_FEED = "https://shopify.dev/changelog/feed.xml"
+SHOPIFY_PAYMENTS_FILTER = True  # also alert on Payments-tagged changelog entries
 
 STATE_FILE = pathlib.Path("state.json")
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK")
@@ -52,6 +60,119 @@ def latest_for_major(releases, major):
         if best is None or ver > best[0]:
             best = (ver, rel)
     return best[1] if best else None
+
+
+def _localname(tag):
+    """Strip any XML namespace: '{ns}item' -> 'item'."""
+    return tag.rsplit("}", 1)[-1]
+
+
+def fetch_feed(url):
+    """Fetch an RSS feed and return a list of items as dicts.
+
+    Each item: {title, link, id, categories}. Namespace-tolerant so it works
+    whether or not the feed declares one.
+    """
+    req = urllib.request.Request(url, headers={"User-Agent": "release-watcher/1.0"})
+    with urllib.request.urlopen(req) as r:
+        root = ET.fromstring(r.read())
+
+    items = []
+    for el in root.iter():
+        if _localname(el.tag) != "item":
+            continue
+        fields = {"title": "", "link": "", "id": "", "categories": []}
+        for child in el:
+            name = _localname(child.tag)
+            text = (child.text or "").strip()
+            if name == "title":
+                fields["title"] = text
+            elif name == "link":
+                fields["link"] = text
+            elif name == "guid":
+                fields["id"] = text
+            elif name == "category" and text:
+                fields["categories"].append(text)
+        if not fields["id"]:
+            fields["id"] = fields["link"]  # fall back to link as the stable id
+        items.append(fields)
+    return items
+
+
+def check_shopify(state):
+    """Watch the Shopify developer changelog feed.
+
+    Two independent signals, both robust to the feed's unreliable pubDate
+    because we key off the version string and each entry's stable GUID:
+      A) a new dated API version (e.g. 2026-10) appears  -> always announced
+      B) a Payments-tagged entry appears (optional)      -> announced per entry
+
+    First-run behaviour differs per signal on purpose: for versions we announce
+    the current latest once (a useful "it works" confirmation), but for payments
+    entries we seed silently so the channel isn't flooded with historical posts.
+    """
+    try:
+        items = fetch_feed(SHOPIFY_FEED)
+    except Exception as e:
+        print(f"skip shopify: {e}")
+        return False
+
+    changed = False
+
+    # --- Signal A: API versions (from exact 'YYYY-MM' category tags) --------
+    versions = set()
+    for it in items:
+        for cat in it["categories"]:
+            if re.fullmatch(r"20\d\d-\d\d", cat):
+                versions.add(cat)
+
+    if versions:
+        if "shopify:versions" not in state:  # first run
+            latest = max(versions)
+            print(f"NEW: shopify api version -> {latest} (seeding)")
+            try:
+                notify(f"🛍️ **Shopify** current API version **{latest}**\n{SHOPIFY_FEED}")
+                state["shopify:versions"] = sorted(versions)
+                changed = True
+            except Exception as e:
+                print(f"  notify failed for shopify version: {e}")
+        else:
+            seen = set(state["shopify:versions"])
+            for v in sorted(versions - seen):
+                print(f"NEW: shopify api version -> {v}")
+                try:
+                    notify(f"🛍️ **Shopify** new API version **{v}** — time to test\n{SHOPIFY_FEED}")
+                    state["shopify:versions"] = sorted(seen | {v})
+                    seen.add(v)
+                    changed = True
+                except Exception as e:
+                    print(f"  notify failed for shopify version {v}: {e}")
+
+    # --- Signal B: Payments-related entries (optional) ---------------------
+    if SHOPIFY_PAYMENTS_FILTER:
+        def is_payments(it):
+            haystack = (it["title"] + " " + " ".join(it["categories"])).lower()
+            return "payment" in haystack
+
+        pay = [it for it in items if is_payments(it)]
+        if "shopify:seen_payments" not in state:  # first run: seed silently
+            state["shopify:seen_payments"] = [it["id"] for it in pay]
+            changed = True
+        else:
+            seen = set(state["shopify:seen_payments"])
+            for it in pay:
+                if it["id"] in seen:
+                    continue
+                print(f"NEW: shopify payments entry -> {it['title']}")
+                try:
+                    notify(f"💳 **Shopify** payments changelog: {it['title']}\n{it['id']}")
+                    seen.add(it["id"])
+                    state["shopify:seen_payments"] = list(seen)
+                    changed = True
+                except Exception as e:
+                    print(f"  notify failed for shopify entry: {e}")
+
+    return changed
 
 
 def notify(text):
@@ -135,6 +256,9 @@ def main():
             label = f"{repo} (v{major})"
             if announce(key, label, rel["tag_name"], rel["html_url"], state):
                 changed = True
+
+    if WATCH_SHOPIFY and check_shopify(state):
+        changed = True
 
     if changed:
         STATE_FILE.write_text(json.dumps(state, indent=2))
