@@ -159,6 +159,9 @@ def check_shopify(state):
             state["shopify:seen_payments"] = [it["id"] for it in pay]
             changed = True
         else:
+            # Keep the stored value an ordered list (append-only) so a new
+            # entry produces a one-line diff instead of reshuffling the whole
+            # list; `seen` is just a membership index over that same list.
             seen = set(state["shopify:seen_payments"])
             for it in pay:
                 if it["id"] in seen:
@@ -167,7 +170,7 @@ def check_shopify(state):
                 try:
                     notify(f"💳 **Shopify** payments changelog: {it['title']}\n{it['id']}")
                     seen.add(it["id"])
-                    state["shopify:seen_payments"] = list(seen)
+                    state["shopify:seen_payments"].append(it["id"])
                     changed = True
                 except Exception as e:
                     print(f"  notify failed for shopify entry: {e}")
@@ -176,10 +179,33 @@ def check_shopify(state):
 
 
 def notify(text):
+    """Send to every configured channel, isolating each one.
+
+    If Discord succeeds but Slack fails (or vice versa), we must NOT let the
+    failure propagate: callers treat any raised exception as "nothing sent" and
+    skip saving state, which would re-notify the already-delivered channel on
+    the next run. So each channel is guarded independently and we re-raise only
+    if every configured channel failed.
+    """
+    channels = []
     if DISCORD_WEBHOOK:
-        post(DISCORD_WEBHOOK, {"content": text})
+        channels.append(("discord", DISCORD_WEBHOOK, {"content": text}))
     if SLACK_WEBHOOK:
-        post(SLACK_WEBHOOK, {"text": text})
+        channels.append(("slack", SLACK_WEBHOOK, {"text": text}))
+
+    if not channels:
+        return
+
+    errors = []
+    for name, url, payload in channels:
+        try:
+            post(url, payload)
+        except Exception as e:
+            print(f"  notify failed for {name}: {e}")
+            errors.append(e)
+
+    if len(errors) == len(channels):
+        raise errors[0]  # every channel failed -> let caller skip saving state
 
 
 def post(url, payload):
@@ -261,7 +287,7 @@ def main():
         changed = True
 
     if changed:
-        STATE_FILE.write_text(json.dumps(state, indent=2))
+        STATE_FILE.write_text(json.dumps(state, indent=2) + "\n")
 
 
 if __name__ == "__main__":

@@ -104,11 +104,11 @@ Configured in `.github/workflows/check.yml`:
 ```yaml
 on:
   schedule:
-    - cron: "0 * * * *"   # hourly
+    - cron: "0 8 * * *"   # daily at 08:00 UTC
   workflow_dispatch:        # manual trigger for testing
 ```
 
-Change the cron to `"0 8 * * *"` for a daily 08:00 UTC check, etc.
+Change the cron to `"0 * * * *"` for an hourly check, etc.
 
 ## Things to know
 

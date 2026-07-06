@@ -1,7 +1,7 @@
 name: Check for new releases
 on:
   schedule:
-    - cron: "0 8 * * *"   # hourly; change to "0 8 * * *" for daily at 08:00 UTC
+    - cron: "0 8 * * *"   # daily at 08:00 UTC; change to "0 * * * *" for hourly
   workflow_dispatch:        # lets you run it manually to test
 
 permissions:
