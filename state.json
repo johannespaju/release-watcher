@@ -28,7 +28,8 @@
     "2026-01",
     "2026-04",
     "2026-07",
-    "2026-10"
+    "2026-10",
+    "2027-01"
   ],
   "shopify:seen_payments": [
     "https://shopify.dev/changelog/payment-mandates-id-field",
