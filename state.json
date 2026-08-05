@@ -1,6 +1,6 @@
 {
   "magento/magento2": "2.4.9",
-  "woocommerce/woocommerce": "10.9.4",
+  "woocommerce/woocommerce": "11.0.0",
   "PrestaShop/PrestaShop": "9.1.4",
   "opencart/opencart#3": "3.0.5.0",
   "opencart/opencart#4": "4.1.0.3",
