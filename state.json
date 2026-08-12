@@ -2,8 +2,8 @@
   "magento/magento2": "2.4.9",
   "woocommerce/woocommerce": "11.0.1",
   "PrestaShop/PrestaShop": "9.1.4",
-  "opencart/opencart#3": "3.0.5.0",
-  "opencart/opencart#4": "4.1.0.3",
+  "opencart/opencart#3": "3.0.5.1",
+  "opencart/opencart#4": "4.1.0.4",
   "shopify:versions": [
     "2021-01",
     "2021-04",
