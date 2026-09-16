@@ -130,6 +130,7 @@
     "https://shopify.dev/changelog/multi-currency-for-shopify-payments-is-coming-to-all-plans",
     "https://shopify.dev/changelog/we-re-launching-multi-currency-with-shopify-payments-which-lets-merchants-offer-prices-in-their-customers-local-currencies",
     "https://shopify.dev/changelog/hosted-payment-sdk-requests-will-include-a-new-key-value-pair-for-locale",
-    "https://shopify.dev/changelog/new-paymentinstrumentsendaddemail-mutation"
+    "https://shopify.dev/changelog/new-paymentinstrumentsendaddemail-mutation",
+    "https://shopify.dev/changelog/family_name-is-optional-for-b2b-orders-in-payments-apps-api-requests"
   ]
 }
