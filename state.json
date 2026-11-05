@@ -1,6 +1,6 @@
 {
   "magento/magento2": "2.4.10-alpha1",
-  "woocommerce/woocommerce": "11.2.1",
+  "woocommerce/woocommerce": "11.2.2",
   "PrestaShop/PrestaShop": "9.2.0",
   "opencart/opencart#3": "3.0.5.1",
   "opencart/opencart#4": "4.1.0.4",
@@ -133,6 +133,7 @@
     "https://shopify.dev/changelog/new-paymentinstrumentsendaddemail-mutation",
     "https://shopify.dev/changelog/family_name-is-optional-for-b2b-orders-in-payments-apps-api-requests",
     "https://shopify.dev/changelog/shopify-payments-balance-transaction-graphql-type-supports-currency-conversion-type",
-    "https://shopify.dev/changelog/new-trusted-vault-origin-signal-in-payments-apps-api"
+    "https://shopify.dev/changelog/new-trusted-vault-origin-signal-in-payments-apps-api",
+    "https://shopify.dev/changelog/retry_declined-added-to-customerpaymentmethodrevocationreason"
   ]
 }
